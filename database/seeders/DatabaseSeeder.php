@@ -20,6 +20,20 @@ class DatabaseSeeder extends Seeder
             'role' => 'admin',
             'email_verified_at' => now(),
         ]);
+        // Di dalam method run()
+        User::create([
+            'name' => 'Admin',
+            'email' => 'admin@tokoonline.com',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+        ]);
+
+        User::create([
+            'name' => 'Customer',
+            'email' => 'customer@tokoonline.com',
+            'password' => Hash::make('password'),
+            'role' => 'customer',
+        ]);
         $this->command->info('✅ Admin user created: admin@example.com');
 
         // 2. Buat beberapa customer
