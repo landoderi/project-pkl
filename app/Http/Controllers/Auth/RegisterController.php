@@ -100,3 +100,4 @@ class RegisterController extends Controller
             'role'     => 'customer',
         ]);
     }
+}

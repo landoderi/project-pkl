@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -107,4 +108,57 @@ class User extends Authenticatable
                     ->where('product_id', $product->id)
                     ->exists();
     }
+// app/Models/User.php
+
+// Tambahkan accessor untuk avatar URL
+
+/**
+ * Get the avatar URL.
+ * Accessor ini otomatis dipanggil saat kita akses $user->avatar_url
+ * Logika Prioritas:
+ * 1. Cek Storage Lokal: Apakah user upload file custom? Jika ya, return URL local storage.
+ * 2. Cek URL Eksternal: Apakah user login via Google? Jika ya, return URL dari Google.
+ * 3. Fallback: Gunakan Gravatar berdasarkan hash email agar user tidak tampil polos.
+ */
+public function getAvatarUrlAttribute(): string
+{
+    // Prioritas 1: Avatar yang di-upload (file fisik ada di server)
+    // Kita harus cek Storage::exists() agar tidak broken image jika file-nya terhapus manual.
+    if ($this->avatar && Storage::disk('public')->exists($this->avatar)) {
+        return asset('storage/' . $this->avatar);
+    }
+
+    // Prioritas 2: Avatar dari Google (URL eksternal dimulai dengan http)
+    // Biasanya ini terjadi saat user login via Socialite (Google Sign-In).
+    if (str_starts_with($this->avatar ?? '', 'http')) {
+        return $this->avatar;
+    }
+
+    // Prioritas 3: Gravatar (Layanan sedunia untuk avatar berdasarkan email)
+    // Gravatar menggunakan MD5 hash dari email lowercase.
+    // Jika user belum punya gravatar, tampilkan 'mp' (Mystery Person).
+    // &s=200 artinya size gambar 200x200px.
+    $hash = md5(strtolower(trim($this->email)));
+    return "https://www.gravatar.com/avatar/{$hash}?d=mp&s=200";
+}
+
+/**
+ * Get initials from name for avatar fallback.
+ * Contoh: "Agung Wahyudi" -> "AW"
+ * Berguna jika kita ingin membuat UI avatar berupa inisial huruf teks.
+ */
+public function getInitialsAttribute(): string
+{
+    $words = explode(' ', $this->name);
+    $initials = '';
+
+    foreach ($words as $word) {
+        // Ambil huruf pertama tiap kata dan kapitalkan
+        $initials .= strtoupper(substr($word, 0, 1));
+    }
+
+    // Ambil maksimal 2 huruf pertama saja
+    return substr($initials, 0, 2);
+}
+
 }

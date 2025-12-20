@@ -7,25 +7,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up(): void
-    {
-        Schema::create('wishlists', function (Blueprint $table) {
-            $table->id();
+// database/migrations/xxxx_xx_xx_create_wishlists_table.php
 
-            $table->foreignId('user_id')
-                  ->constrained()
-                  ->cascadeOnDelete();
+public function up()
+{
+    Schema::create('wishlists', function (Blueprint $table) {
+        $table->id();
+        // Foreign Key ke User
+        $table->foreignId('user_id')->constrained()->onDelete('cascade');
+        // Foreign Key ke Product
+        $table->foreignId('product_id')->constrained()->onDelete('cascade');
+        $table->timestamps();
 
-            $table->foreignId('product_id')
-                  ->constrained()
-                  ->cascadeOnDelete();
-
-            $table->timestamps();
-
-            // User hanya bisa wishlist produk sekali
-            $table->unique(['user_id', 'product_id']);
-        });
-    }
+        // Mencegah duplikasi: User yang sama tidak bisa wishlist produk yang sama 2x
+        $table->unique(['user_id', 'product_id']);
+    });
+}
 
     public function down(): void
     {

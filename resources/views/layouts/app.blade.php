@@ -1,131 +1,181 @@
-{{-- ======================================== FILE:
-resources/views/layouts/app.blade.php FUNGSI: Template utama yang digunakan
-semua halaman ======================================== --}}
+{{-- ================================================================
+     FILE: resources/views/layouts/app.blade.php
+     ================================================================
+
+     INI ADALAH MASTER LAYOUT / PARENT TEMPLATE
+
+     KONSEP TEMPLATE INHERITANCE:
+     ┌─────────────────────────────────────────────┐
+     │              layouts/app.blade.php          │
+     │   ┌─────────────────────────────────────┐   │
+     │   │  Navbar (sama di semua halaman)     │   │
+     │   ├─────────────────────────────────────┤   │
+     │   │  @yield('content')                  │   │
+     │   │  ← Konten berbeda tiap halaman      │   │
+     │   ├─────────────────────────────────────┤   │
+     │   │  Footer (sama di semua halaman)     │   │
+     │   └─────────────────────────────────────┘   │
+     └─────────────────────────────────────────────┘
+
+     KEUNTUNGAN:
+     - DRY (Dont Repeat Yourself)
+     - Navbar/Footer hanya ditulis 1x
+     - Update di 1 tempat = update semua halaman
+
+     ================================================================ --}}
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-  {{-- ↑ str_replace mengganti underscore dengan dash Contoh: en_US menjadi
-  en-US --}}
+{{-- ↑ Deklarasi HTML5 --}}
 
-  <head>
-    <meta charset="utf-8" />
-    {{-- ↑ Encoding karakter UTF-8 untuk mendukung karakter Indonesia --}}
+<html lang="id">
+{{-- ↑ lang="id" penting untuk:
+       - Screen reader (aksesibilitas)
+       - SEO (search engine tahu bahasa halaman)
+       - Auto-translate browser --}}
 
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    {{-- ↑ Membuat halaman responsive di semua ukuran layar --}}
+<head>
+    <meta charset="UTF-8">
+    {{-- ↑ Encoding karakter UTF-8
+           Mendukung karakter Indonesia, emoji, dll --}}
 
-    <meta name="csrf-token" content="{{ csrf_token() }}" />
-    {{-- ↑ CSRF Token untuk keamanan form Mencegah serangan Cross-Site Request
-    Forgery --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- ↑ VIEWPORT META - SANGAT PENTING untuk responsive!
+           width=device-width: lebar sesuai layar device
+           initial-scale=1.0: zoom level awal 100%
+           Tanpa ini, website terlihat kecil di HP --}}
 
-    <title>{{ config('app.name', 'Toko Online') }}</title>
-    {{-- ↑ Mengambil nama aplikasi dari config/app.php Jika tidak ada, gunakan
-    default 'Toko Online' --}}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    {{-- ↑ CSRF TOKEN untuk request AJAX
 
-    <!-- Fonts -->
-    <link rel="dns-prefetch" href="//fonts.bunny.net" />
-    <link href="https://fonts.bunny.net/css?family=Nunito" rel="stylesheet" />
-    {{-- ↑ Load font Nunito dari Bunny Fonts (alternatif Google Fonts) --}}
+         CSRF (Cross-Site Request Forgery) adalah serangan dimana
+         hacker mengirim request dari website lain menggunakan
+         session user yang masih aktif.
 
-    <!-- Scripts & Styles -->
-    @vite(['resources/sass/app.scss', 'resources/js/app.js']) {{-- ↑ Load file
-    CSS dan JS yang sudah di-compile oleh Vite - app.scss berisi Bootstrap dan
-    custom styles - app.js berisi Bootstrap JS dan custom scripts --}}
-  </head>
+         CONTOH SERANGAN:
+         User login di tokoonline.com
+         User buka malicious-site.com
+         Malicious site punya form tersembunyi:
+         <form action="tokoonline.com/cart/checkout" method="POST">
+         Form ini auto-submit, dan karena browser masih punya
+         session tokoonline, request berhasil!
 
-  <body>
-    <div id="app">
-      {{-- ================================================ NAVBAR (Menu
-      Navigasi Atas) ================================================ --}}
-      <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
-        {{-- ↑ navbar-expand-md = hamburger menu di layar kecil navbar-light =
-        warna teks gelap bg-white = background putih shadow-sm = bayangan halus
-        --}}
+         SOLUSI:
+         Setiap form harus punya token random yang hanya diketahui
+         server. Token ini disimpan di meta tag agar bisa diakses
+         JavaScript untuk AJAX request.
 
-        <div class="container">
-          {{-- Logo dan Nama Toko --}}
-          <a class="navbar-brand" href="{{ url('/') }}">
-            🛒 {{ config('app.name', 'Toko Online') }}
-          </a>
+         JavaScript mengambil token:
+         const token = document.querySelector('meta[name="csrf-token"]').content --}}
 
-          {{-- Tombol Hamburger (untuk mobile) --}}
-          <button
-            class="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarSupportedContent"
-          >
-            <span class="navbar-toggler-icon"></span>
-          </button>
+    <title>@yield('title', 'Toko Online') - {{ config('app.name') }}</title>
+    {{-- ↑ PENJELASAN DIRECTIVE @yield():
 
-          <div class="collapse navbar-collapse" id="navbarSupportedContent">
-            <!-- Left Side Of Navbar (Kosong untuk sekarang) -->
-            <ul class="navbar-nav me-auto"></ul>
+         @yield('nama', 'default') adalah PLACEHOLDER
+         Akan diisi oleh child template dengan @section()
 
-            <!-- Right Side Of Navbar -->
-            <ul class="navbar-nav ms-auto">
-              {{-- ================================================ CEK STATUS
-              LOGIN ================================================ @guest =
-              user BELUM login @else = user SUDAH login
-              ================================================ --}} @guest {{--
-              TAMPILAN UNTUK GUEST (Belum Login) --}} @if (Route::has('login'))
-              <li class="nav-item">
-                <a class="nav-link" href="{{ route('login') }}"> Login </a>
-              </li>
-              @endif @if (Route::has('register'))
-              <li class="nav-item">
-                <a class="nav-link" href="{{ route('register') }}">
-                  Register
-                </a>
-              </li>
-              @endif @else {{-- TAMPILAN UNTUK USER YANG SUDAH LOGIN --}}
+         ALUR:
+         1. Child: @section('title', 'Katalog Produk')
+         2. Parent: @yield('title') diganti 'Katalog Produk'
+         3. Hasil: "Katalog Produk - Toko Online"
 
-              <li class="nav-item dropdown">
-                <a
-                  id="navbarDropdown"
-                  class="nav-link dropdown-toggle"
-                  href="#"
-                  role="button"
-                  data-bs-toggle="dropdown"
-                >
-                  {{ Auth::user()->name }} {{-- ↑ Tampilkan nama user yang login
-                  --}}
-                </a>
+         'Toko Online' adalah DEFAULT jika child tidak set title
 
-                <div class="dropdown-menu dropdown-menu-end">
-                  {{-- Tombol Logout --}}
-                  <a
-                    class="dropdown-item"
-                    href="{{ route('logout') }}"
-                    onclick="event.preventDefault();
-                                                document.getElementById('logout-form').submit();"
-                  >
-                    Logout
-                  </a>
-                  {{-- ↑ onclick: Mencegah link biasa, lalu submit form logout
-                  --}} {{-- Form Logout (tersembunyi) --}}
-                  <form
-                    id="logout-form"
-                    action="{{ route('logout') }}"
-                    method="POST"
-                    class="d-none"
-                  >
-                    @csrf {{-- ↑ WAJIB ada @csrf untuk POST request --}}
-                  </form>
-                </div>
-              </li>
-              @endguest
-            </ul>
-          </div>
-        </div>
-      </nav>
+         {{ config('app.name') }}
+         Mengambil nilai APP_NAME dari file .env
+         .env: APP_NAME="Toko Online"
+         Hasil: "Toko Online" --}}
 
-      {{-- ================================================ MAIN CONTENT
-      ================================================ --}}
-      <main class="py-4">
-        @yield('content') {{-- ↑ Di sinilah konten dari setiap halaman akan
-        ditampilkan Setiap halaman menggunakan @section('content') --}}
-      </main>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- ↑ DIRECTIVE @vite() - Menyisipkan CSS dan JS
+
+         CARA KERJA VITE:
+
+         DEVELOPMENT (npm run dev):
+         Vite berjalan sebagai server di port 5173
+         @vite() menghasilkan:
+         <script type="module" src="http://localhost:5173/@vite/client">
+         <script type="module" src="http://localhost:5173/resources/js/app.js">
+         Hot Module Replacement (HMR) aktif - edit langsung terlihat
+
+         PRODUCTION (npm run build):
+         File dikompilasi ke public/build/
+         @vite() membaca manifest.json untuk dapetin nama file dengan hash
+         <link rel="stylesheet" href="/build/assets/app-Dk3J8sH2.css">
+         <script type="module" src="/build/assets/app-L3hF9kD1.js">
+         Hash di nama file untuk cache busting --}}
+
+    @stack('styles')
+    {{-- ↑ STACK adalah tempat kumpulan konten dari child
+
+         BERBEDA DENGAN @yield:
+         - @yield: 1 child hanya 1x isi, replace
+         - @stack: banyak @push bisa ditumpuk
+
+         CARA PAKAI DI CHILD:
+         @push('styles')
+             <link rel="stylesheet" href="/custom.css">
+         @endpush
+
+         @push('styles')
+             <style>.product-card { border: 1px solid red }</style>
+         @endpush
+
+         HASIL: Kedua block ditampilkan --}}
+</head>
+
+<body>
+    @include('partials.navbar')
+    {{-- ↑ DIRECTIVE @include() - Menyisipkan File Lain
+
+         Sama seperti copy-paste isi file ke sini
+
+         @include('partials.navbar') artinya:
+         Sisipkan file: resources/views/partials/navbar.blade.php
+
+         PATH MENGGUNAKAN DOT NOTATION:
+         partials.navbar = partials/navbar.blade.php
+         admin.products.form = admin/products/form.blade.php
+
+         PASSING DATA KE INCLUDE:
+         @include('partials.product-card', ['product' => $item])
+         Variabel $product tersedia di dalam product-card.blade.php
+
+         BEDANYA DENGAN @extends:
+         - @extends: inheritance (parent-child relationship)
+         - @include: composition (menyisipkan partial/fragment) --}}
+
+    <div class="container mt-3">
+        @include('partials.flash-messages')
     </div>
-  </body>
+
+    <main class="min-vh-100">
+    {{-- ↑ min-vh-100 = minimum 100% viewport height
+           Agar footer tetap di bawah meski konten sedikit --}}
+
+        @yield('content')
+        {{-- ↑ CONTENT UTAMA dari child template
+
+             Di child:
+             @section('content')
+                 <h1>Selamat Datang</h1>
+                 <p>Ini konten halaman</p>
+             @endsection
+
+             @yield('content') akan diganti dengan semua konten
+             di dalam @section('content') child --}}
+    </main>
+
+    @include('partials.footer')
+
+    @stack('scripts')
+    {{-- ↑ Tempat menumpuk JavaScript dari child
+
+         Child bisa push script khusus untuk halaman itu:
+         @push('scripts')
+         <script>
+             console.log('Ini hanya di halaman detail produk');
+         </script>
+         @endpush --}}
+         
+</body>
 </html>

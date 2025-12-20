@@ -54,7 +54,7 @@ class GoogleController extends Controller
             //   state=xxx&
             //   response_type=code
     }
-
+    
     /**
      * Handle callback dari Google setelah user memberikan izin.
      *
@@ -286,5 +286,8 @@ class GoogleController extends Controller
             'role' => 'customer',
             // ↑ Role default untuk user baru
         ]);
+
+        
     }
+    
 }
