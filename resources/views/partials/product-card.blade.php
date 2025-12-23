@@ -4,6 +4,11 @@
      ================================================ --}}
 
 <div class="card product-card h-100 border-0 shadow-sm">
+        <style>
+        body {
+            background-color: #f1ba72; /* coklat cerah */
+        }
+    </style>
     {{-- Product Image --}}
     <div class="position-relative">
         <a href="{{ route('catalog.show', $product->slug) }}">

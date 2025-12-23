@@ -21,43 +21,81 @@
                     {{-- Nama Produk --}}
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nama Produk</label>
-                        <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}">
-                        @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
+                               value="{{ old('name') }}">
+                        @error('name') 
+                            <div class="invalid-feedback">{{ $message }}</div> 
+                        @enderror
                     </div>
 
-                    {{-- Kategori Dropdown --}}
+                    {{-- Kategori --}}
                     <div class="mb-3">
                         <label class="form-label fw-bold">Kategori</label>
                         <select name="category_id" class="form-select @error('category_id') is-invalid @enderror">
                             <option value="">Pilih Kategori...</option>
                             @foreach($categories as $category)
-                                <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>
+                                <option value="{{ $category->id }}" 
+                                        {{ old('category_id') == $category->id ? 'selected' : '' }}>
                                     {{ $category->name }}
                                 </option>
                             @endforeach
                         </select>
-                         @error('category_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        @error('category_id') 
+                            <div class="invalid-feedback">{{ $message }}</div> 
+                        @enderror
                     </div>
 
-                    {{-- Harga & Stok --}}
+                    {{-- Harga, Stok, Berat --}}
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Harga (Rp)</label>
-                            <input type="number" name="price" class="form-control" value="{{ old('price') }}">
+                            <input type="number" name="price" 
+                                   class="form-control @error('price') is-invalid @enderror" 
+                                   value="{{ old('price') }}">
+                            @error('price') 
+                                <div class="invalid-feedback">{{ $message }}</div> 
+                            @enderror
                         </div>
-                        <div class="col-md-6 mb-3">
+
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Stok</label>
-                            <input type="number" name="stock" class="form-control" value="{{ old('stock') }}">
+                            <input type="number" name="stock" 
+                                   class="form-control @error('stock') is-invalid @enderror" 
+                                   value="{{ old('stock') }}">
+                            @error('stock') 
+                                <div class="invalid-feedback">{{ $message }}</div> 
+                            @enderror
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Berat (gram)</label>
+                            <input type="number" name="weight" 
+                                   class="form-control @error('weight') is-invalid @enderror" 
+                                   value="{{ old('weight') }}" step="0.01">
+                            @error('weight') 
+                                <div class="invalid-feedback">{{ $message }}</div> 
+                            @enderror
                         </div>
                     </div>
 
                     {{-- Gambar --}}
                     <div class="mb-3">
                         <label class="form-label fw-bold">Upload Gambar</label>
-                        <input type="file" name="images[]" multiple class="form-control">
+                        <input type="file" name="images[]" multiple 
+                               class="form-control @error('images') is-invalid @enderror">
+                        @error('images') 
+                            <div class="invalid-feedback">{{ $message }}</div> 
+                        @enderror
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-lg w-100">Simpan Produk</button>
+                    {{-- Status Produk --}}
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" value="1" checked>
+                        <label class="form-check-label fw-bold" for="is_active">Aktifkan Produk</label>
+                    </div>  
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        Simpan Produk
+                    </button>
                 </form>
             </div>
         </div>

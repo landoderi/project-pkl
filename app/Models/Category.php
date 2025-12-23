@@ -1,20 +1,22 @@
 <?php
-// app/Models/Category.php
+// ================================================
+// FILE: app/Models/Category.php
+// FUNGSI: Model untuk tabel 'categories'
+// ================================================
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Category extends Model
 {
     use HasFactory;
 
-    // $fillable: Menentukan kolom mana saja yang BOLEH diisi secara massal
-    // (Mass Assignment). Ini fitur keamanan Laravel untuk mencegah
-    // user jahat mengisi kolom sensitive.
+    // Kolom yang boleh diisi massal
     protected $fillable = [
         'name',
         'slug',
@@ -23,9 +25,7 @@ class Category extends Model
         'is_active',
     ];
 
-    // $casts: Mengubah tipe data dari database ke tipe PHP native.
-    // Database: TINYINT(1) (0 atau 1)
-    // Laravel: boolean (false atau true)
+    // Casting tipe data
     protected $casts = [
         'is_active' => 'boolean',
     ];
@@ -33,11 +33,7 @@ class Category extends Model
     // ==================== RELATIONSHIPS ====================
 
     /**
-     * Relasi One-to-Many: Satu Kategori memiliki BANYAK Produk.
-     *
-     * - Parameter 1: Model tujuan (Product::class)
-     * - Parameter 2 (opsional): Foreign key di tabel products ('category_id')
-     * - Parameter 3 (opsional): Local key di tabel categories ('id')
+     * Relasi One-to-Many: 1 kategori memiliki banyak produk
      */
     public function products(): HasMany
     {
@@ -45,26 +41,19 @@ class Category extends Model
     }
 
     /**
-     * Relasi dengan filter tambahan.
-     * Hanya mengambil produk yang aktif dan stok > 0.
-     *
-     * Contoh penggunaan:
-     * $category->activeProducts; // Return Collection of Products
+     * Relasi dengan filter produk aktif & tersedia
      */
     public function activeProducts(): HasMany
     {
         return $this->hasMany(Product::class)
-                    ->where('is_active', true)
-                    ->where('stock', '>', 0);
+            ->where('is_active', true)
+            ->where('stock', '>', 0);
     }
 
     // ==================== SCOPES ====================
 
     /**
-     * Local Scope: Helper untuk filter query yang sering dipakai.
-     *
-     * Cara Pakai: Category::active()->get();
-     * $query otomatis dideviasikan oleh Laravel sebagai parameter pertama.
+     * Scope: Hanya kategori aktif
      */
     public function scopeActive($query)
     {
@@ -72,64 +61,72 @@ class Category extends Model
     }
 
     /**
-     * Scope: Hanya kategori yang memiliki produk aktif di dalamnya.
-     * Menggunakan whereHas() untuk mengecek relasi.
+     * Scope: Kategori yang memiliki produk aktif
      */
     public function scopeWithProducts($query)
     {
-        return $query->whereHas('products', function ($q) {
-            $q->where('is_active', true); // Di dalam relasi products
-        });
+        return $query->whereHas('activeProducts');
     }
 
     // ==================== ACCESSORS ====================
 
     /**
-     * Accessor: Membuat "Virtual Attribute" baru.
-     * Nama attribute di code: $category->image_url
-     * (Konversi dari getImageUrlAttribute -> image_url)
+     * Accessor: URL gambar kategori
      */
     public function getImageUrlAttribute(): string
     {
-        if ($this->image) {
-            // Jika ada gambar, generate full URL ke storage
-            return asset('storage/' . $this->image);
+        if ($this->image && Storage::exists($this->image)) {
+            return Storage::url($this->image);
         }
-        // Jika tidak, tampilkan placeholder
-        return asset('images/images.jpg');
+
+        // Placeholder default
+        return asset('images/default-category.jpg');
     }
 
     /**
-     * Accessor: Menghitung jumlah produk aktif.
-     * $category->products_count
+     * Accessor: Jumlah produk aktif (untuk tampilan cepat)
      */
     public function getProductsCountAttribute(): int
     {
-        // Tips: Untuk performa, sebaiknya gunakan withCount() di controller
-        // daripada menghitung manual di sini jika datanya banyak.
         return $this->activeProducts()->count();
     }
 
-    // ==================== BOOT (MODEL EVENTS) ====================
+    // ==================== EVENTS ====================
 
     protected static function boot()
     {
         parent::boot();
 
-        // Event: creating (Sebelum data disimpan ke DB)
-        // Kita gunakan untuk auto-generate slug dari name.
+        // Auto generate slug saat membuat kategori
         static::creating(function ($category) {
             if (empty($category->slug)) {
-                // Contoh: "Elektronik & Gadget" -> "elektronik-gadget"
-                $category->slug = Str::slug($category->name);
+                $baseSlug = Str::slug($category->name);
+                $slug = $baseSlug;
+                $counter = 1;
+
+                // Pastikan slug unik
+                while (static::where('slug', $slug)->exists()) {
+                    $slug = "{$baseSlug}-{$counter}";
+                    $counter++;
+                }
+
+                $category->slug = $slug;
             }
         });
 
-        // Event: updating (Sebelum data yang diedit disimpan)
-        // Cek jika nama berubah, update juga slug-nya.
+        // Auto update slug jika nama diubah
         static::updating(function ($category) {
-            if ($category->isDirty('name')) { // isDirty() = apakah nilai berubah?
-                $category->slug = Str::slug($category->name);
+            if ($category->isDirty('name')) {
+                $baseSlug = Str::slug($category->name);
+                $slug = $baseSlug;
+                $counter = 1;
+
+                while (static::where('slug', $slug)->where('id', '!=', $category->id)->exists()) {
+                    $slug = "{$baseSlug}-{$counter}";
+                    $counter++;
+                }
+
+                $category->slug = $slug;
             }
         });
     }

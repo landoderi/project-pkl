@@ -14,60 +14,49 @@ class HomeController extends Controller
 {
     /**
      * Menampilkan halaman beranda.
-     *
-     * Halaman ini menampilkan:
-     * - Hero section (static)
-     * - Kategori populer
-     * - Produk unggulan (featured)
-     * - Produk terbaru
      */
     public function index()
     {
         // ================================================
         // AMBIL DATA KATEGORI
-        // - Hanya yang aktif
-        // - Hitung jumlah produk di masing-masing kategori
         // ================================================
-        $categories = Category::query()
-            ->active()                    // Scope: hanya is_active = true
-            ->withCount(['activeProducts' => function($q) {
-                $q->where('is_active', true)
-                  ->where('stock', '>', 0);
-            }])
-            ->having('active_products_count', '>', 0)  // Hanya yang punya produk
-            ->orderBy('name')
-            ->take(6)                     // Batasi 6 kategori
-            ->get();
+$categories = Category::query()
+    ->active()
+    ->withCount(['activeProducts' => function($q) {
+        $q->where('is_active', true)
+          ->where('stock', '>', 0);
+    }])
+    ->orderByDesc('active_products_count') // kategori dengan produk di atas
+    ->orderBy('name')
+    ->take(6)
+    ->get();
+
 
         // ================================================
-        // PRODUK UNGGULAN (FEATURED)
-        // - Flag is_featured = true
-        // - Aktif dan ada stok
+        // PRODUK UNGGULAN
         // ================================================
         $featuredProducts = Product::query()
-            ->with(['category', 'primaryImage'])  // Eager load untuk performa
-            ->active()                             // Scope: is_active = true
-            ->inStock()                            // Scope: stock > 0
-            ->featured()                           // Scope: is_featured = true
+            ->with(['category', 'primaryImage'])
+            ->active()
+            ->inStock()
+            ->featured()
             ->latest()
             ->take(8)
             ->get();
 
         // ================================================
         // PRODUK TERBARU
-        // - Urutkan dari yang paling baru
         // ================================================
         $latestProducts = Product::query()
             ->with(['category', 'primaryImage'])
             ->active()
             ->inStock()
-            ->latest()         // Order by created_at DESC
+            ->latest()
             ->take(8)
             ->get();
 
         // ================================================
         // KIRIM DATA KE VIEW
-        // compact() membuat array ['key' => $key]
         // ================================================
         return view('home', compact(
             'categories',

@@ -36,6 +36,10 @@ class Product extends Model
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
     ];
+protected $attributes = [
+    'is_active' => true,
+    'is_featured' => true,
+];
 
     // ==================== RELATIONSHIPS ====================
 

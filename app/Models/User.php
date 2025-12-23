@@ -59,10 +59,17 @@ class User extends Authenticatable
     /**
      * User memiliki banyak item wishlist.
      */
-    public function wishlists()
-    {
-        return $this->hasMany(Wishlist::class);
-    }
+// app/Models/User.php
+
+public function wishlists()
+{
+    // Relasi User ke Product melalui tabel wishlists
+    return $this->belongsToMany(Product::class, 'wishlists')
+                ->withTimestamps(); // Agar created_at/updated_at di pivot terisi
+}
+
+// Helper untuk cek apakah user sudah wishlist produk tertentu
+
 
     /**
      * User memiliki banyak pesanan.
