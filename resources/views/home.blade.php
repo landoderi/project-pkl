@@ -49,7 +49,7 @@
         }
 
         .product-section {
-            background-color: #f9f4ee;
+            background-color: #ffeb7a;
             border-radius: 40px;
             padding: 60px 30px;
         }
@@ -152,11 +152,13 @@
 
         {{-- Grid Produk --}}
         <div class="row g-4">
+            <div class="container text">
             @foreach($featuredProducts as $product)
                 <div class="col-6 col-md-4 col-lg-3">
                     @include('partials.product-card', ['product' => $product])
                 </div>
             @endforeach
+        </div>
         </div>
     </div>
 </section>

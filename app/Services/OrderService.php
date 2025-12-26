@@ -1,98 +1,84 @@
 <?php
-// app/Services/OrderService.php
 
 namespace App\Services;
 
 use App\Models\Order;
 use App\Models\User;
-use App\Models\Cart;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Exception;
 
 class OrderService
 {
     /**
      * Membuat Order baru dari Keranjang belanja.
      *
-     * ALUR PROSES (TRANSACTION):
-     * 1. Hitung total & Validasi Stok terakhir
-     * 2. Buat Record Order (Header)
-     * 3. Pindahkan Cart Items ke Order Items (Detail)
-     * 4. Kurangi Stok Produk (Atomic Decrement)
-     * 5. Hapus Keranjang
+     * Langkah-langkah:
+     * 1. Validasi stok & hitung total
+     * 2. Buat order (header)
+     * 3. Buat order_items dari cart_items
+     * 4. Kurangi stok produk
+     * 5. Kosongkan keranjang
      */
     public function createOrder(User $user, array $shippingData): Order
     {
-        // 1. Ambil Keranjang User
-        $cart = $user->cart;
+        // 🔹 Ambil data keranjang user
+        $cart = $user->cart()->with('items.product')->first();
 
         if (!$cart || $cart->items->isEmpty()) {
-            throw new \Exception("Keranjang belanja kosong.");
+            throw new Exception("Keranjang belanja kosong.");
         }
 
-        // ==================== DATABASE TRANSACTION START ====================
-        // Kita menggunakan DB::transaction untuk membungkus semua proses.
-        // Jika ada 1 error saja (misal stok kurang saat mau decrement),
-        // maka SEMUA query yang sudah jalan akan dibatalkan (Rollback).
-        // Order tidak akan terbentuk setengah-setengah.
+        // 🔹 Jalankan semua proses dalam transaksi database
         return DB::transaction(function () use ($user, $cart, $shippingData) {
 
-            // A. VALIDASI STOK & HITUNG TOTAL
+            // === A. VALIDASI STOK & HITUNG TOTAL ===
             $totalAmount = 0;
+
             foreach ($cart->items as $item) {
-                // Penting: Cek stok lagi sesaat sebelum memastikan order.
-                // Mencegah "Race Condition" jika ada orang lain yang beli barang terakhir detik yang sama.
+                // Pastikan stok mencukupi
                 if ($item->quantity > $item->product->stock) {
-                    throw new \Exception("Stok produk {$item->product->name} tidak mencukupi.");
+                    throw new Exception("Stok produk {$item->product->name} tidak mencukupi.");
                 }
-                $totalAmount += $item->product->price * $item->quantity;
+
+                // Hitung total (pakai floatval agar aman)
+                $totalAmount += floatval($item->product->price) * intval($item->quantity);
             }
 
-            // B. BUAT HEADER ORDER
+            // === B. BUAT HEADER ORDER ===
             $order = Order::create([
                 'user_id' => $user->id,
-                // Generate Order Number Unik. Contoh: ORD-X7Y8Z9A1B2
                 'order_number' => 'ORD-' . strtoupper(Str::random(10)),
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
-                'shipping_name' => $shippingData['name'],
-                'shipping_address' => $shippingData['address'],
-                'shipping_phone' => $shippingData['phone'],
+                'shipping_name' => $shippingData['shipping_name'] ?? $user->name,
+                'shipping_address' => $shippingData['shipping_address'] ?? '-',
+                'shipping_phone' => $shippingData['shipping_phone'] ?? '-',
                 'total_amount' => $totalAmount,
             ]);
 
-            // C. PINDAHKAN ITEMS
+            // === C. PINDAHKAN ITEMS KE ORDER ITEMS ===
             foreach ($cart->items as $item) {
-                // Buat Order Item
                 $order->items()->create([
                     'product_id' => $item->product_id,
-
-                    // SNAPSHOT DATA (PENTING!)
-                    // Kita simpan nama & harga barang SAAT INI ke tabel order_items.
-                    // Tujuannya: Jika besok admin ubah harga/nama produk,
-                    // data di historical order user TIDAK IKUT BERUBAH.
-                    'product_name' => $item->product->name,
+                    'product_name' => $item->product->name, // snapshot data
                     'price' => $item->product->price,
-
                     'quantity' => $item->quantity,
                     'subtotal' => $item->product->price * $item->quantity,
                 ]);
 
-                // D. KURANGI STOK (ATOMIC)
-                // decrement() menjalankan query: UPDATE products SET stock = stock - X
-                // Ini thread-safe di level database.
+                // === D. KURANGI STOK PRODUK ===
                 $item->product->decrement('stock', $item->quantity);
             }
 
-            // E. BERSIHKAN KERANJANG
-            // Hapus semua item di keranjang user karena sudah jadi order.
+            // === E. HAPUS ISI KERANJANG ===
             $cart->items()->delete();
 
-            // Opsional: Hapus object cart-nya juga jika ingin reset session total
-            // $cart->delete();
+            // (Opsional) Reset total keranjang
+            // $cart->update(['total' => 0]);
 
-            return $order;
+            // === F. Kembalikan Order ===
+            return $order->load('items.product'); // muat relasi agar langsung bisa ditampilkan
         });
-        // ==================== DATABASE TRANSACTION END ====================
     }
 }

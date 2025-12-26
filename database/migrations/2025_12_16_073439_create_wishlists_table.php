@@ -9,6 +9,8 @@ return new class extends Migration
 {
 // database/migrations/xxxx_xx_xx_create_wishlists_table.php
 
+// database/migrations/xxxx_xx_xx_create_wishlists_table.php
+
 public function up()
 {
     Schema::create('wishlists', function (Blueprint $table) {

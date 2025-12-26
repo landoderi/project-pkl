@@ -9,22 +9,21 @@ class CartItem extends Model
 {
     use HasFactory;
 
-    // Tambahkan product_id di sini 👇
     protected $fillable = [
         'cart_id',
         'product_id',
-        'quantity',
         'price',
+        'quantity',
+        'subtotal',
     ];
-
-    // (Opsional) Jika relasi digunakan
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
 
     public function cart()
     {
         return $this->belongsTo(Cart::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
     }
 }
