@@ -1,24 +1,21 @@
 <?php
-// app/Http/Controllers/OrderController.php
 
 namespace App\Http\Controllers;
 
 use App\Models\Order;
 use Illuminate\Http\Request;
+use App\Services\MidtransService;
 
 class OrderController extends Controller
 {
     /**
-     * Menampilkan daftar pesanan milik user yang sedang login.
+     * Menampilkan daftar pesanan milik user.
      */
     public function index()
     {
-        // PENTING: Jangan gunakan Order::all() !
-        // Kita hanya mengambil order milik user yg sedang login menggunakan relasi hasMany.
-        // auth()->user()->orders() akan otomatis memfilter: WHERE user_id = current_user_id
         $orders = auth()->user()->orders()
-            ->with(['items.product']) // Eager Load nested: Order -> OrderItems -> Product
-            ->latest() // Urutkan dari pesanan terbaru
+            ->with(['items.product'])
+            ->latest()
             ->paginate(10);
 
         return view('orders.index', compact('orders'));
@@ -29,17 +26,39 @@ class OrderController extends Controller
      */
     public function show(Order $order)
     {
-        // 1. Authorize (Security Check)
-        // User A TIDAK BOLEH melihat pesanan User B.
-        // Kita cek apakah ID pemilik order sama dengan ID user yang login.
+        // Pastikan hanya pemilik order yang bisa melihatnya
         if ($order->user_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
-        // 2. Load relasi detail
-        // Kita butuh data items dan gambar produknya untuk ditampilkan di invoice view.
+        // Load relasi produk + gambar utama
         $order->load(['items.product', 'items.product.primaryImage']);
 
-        return view('orders.show', compact('order'));
+        // Siapkan Snap Token Midtrans (kalau ada)
+        $snapToken = $order->snap_token;
+
+        // Jika belum ada token, buat baru
+        if (!$snapToken) {
+            try {
+    $midtrans = new MidtransService();
+    $snapToken = $midtrans->createSnapToken($order);
+
+    dd($snapToken); // <--- tambahkan ini sementara untuk tes
+    $order->update(['snap_token' => $snapToken]);
+} catch (\Exception $e) {
+    return view('orders.show', [
+        'order' => $order,
+        'snapToken' => null,
+        'error' => 'Gagal membuat Snap Token: ' . $e->getMessage(),
+    ]);
+}
+
+        }
+
+        // Pastikan $snapToken SELALU dikirim ke view
+        return view('orders.show', [
+            'order' => $order,
+            'snapToken' => $snapToken,
+        ]);
     }
 }

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
+
 use App\Services\MidtransService;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\GoogleController;
@@ -16,13 +17,15 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\MidtransNotificationController;
+
+// Admin Controllers
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\MidtransNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,24 +35,17 @@ use App\Http\Controllers\MidtransNotificationController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
-Route::get('/tentang', function () {
-    return view('tentang');
-});
+Route::view('/tentang', 'tentang')->name('tentang');
 
-Route::get('/sapa/{nama}', function ($nama) {
-    return "Halo, $nama! Selamat datang di Toko Online Raihan.";
-});
+Route::get('/sapa/{nama}', fn($nama) => "Halo, $nama! Selamat datang di Toko Online Raihan.");
 
-Route::get('/kategori/{nama?}', function ($nama = 'Semua') {
-    return "Menampilkan kategori: $nama";
-});
+Route::get('/kategori/{nama?}', fn($nama = 'Semua') => "Menampilkan kategori: $nama");
 
 /*
 |--------------------------------------------------------------------------
 | AUTH ROUTES
 |--------------------------------------------------------------------------
 */
-
 Auth::routes();
 
 /*
@@ -64,7 +60,7 @@ Route::controller(GoogleController::class)->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| GUEST ROUTES (REGISTER)
+| REGISTER (GUEST)
 |--------------------------------------------------------------------------
 */
 Route::middleware('guest')->group(function () {
@@ -99,9 +95,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile/google/unlink', [ProfileController::class, 'unlinkGoogle'])->name('profile.google.unlink');
 
     // EMAIL VERIFICATION
-    Route::get('/email/verify', function () {
-        return view('auth.verify-email');
-    })->name('verification.notice');
+    Route::get('/email/verify', fn() => view('auth.verify-email'))->name('verification.notice');
 
     Route::post('/email/verification-notification', function (Request $request) {
         $request->user()->sendEmailVerificationNotification();
@@ -141,44 +135,67 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | ORDERS (PESANAN SAYA)
+    | ORDERS (PESANAN USER)
     |--------------------------------------------------------------------------
     */
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+
+    /*
+    |--------------------------------------------------------------------------
+    | PEMBAYARAN (MIDTRANS)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/orders/{order}/pay', [PaymentController::class, 'show'])->name('orders.pay');
+    Route::get('/orders/{order}/success', [PaymentController::class, 'success'])->name('orders.success');
+    Route::get('/orders/{order}/pending', [PaymentController::class, 'pending'])->name('orders.pending');
 });
 
 /*
 |--------------------------------------------------------------------------
-| ADMIN ROUTES (AUTH + ADMIN MIDDLEWARE)
+| ADMIN ROUTES (AUTH + ADMIN)
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+
     // DASHBOARD
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard.alt');
 
-    // CRUD PRODUK
+    // PRODUK
     Route::resource('products', AdminProductController::class);
 
-    // CRUD KATEGORI
+    // KATEGORI
     Route::resource('categories', AdminCategoryController::class);
 
-    // MANAJEMEN PESANAN
+    // PESANAN
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.updateStatus');
 
     // LAPORAN
-    Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
+    Route::get('/reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
 
-    // MANAJEMEN USER
-    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    // USER
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
 });
-// routes/web.php (HAPUS SETELAH TESTING!)
 
+/*
+|--------------------------------------------------------------------------
+| MIDTRANS WEBHOOK (PUBLIC)
+|--------------------------------------------------------------------------
+| Ini wajib public karena diakses langsung oleh server Midtrans.
+*/
+Route::post('/midtrans/notification', [MidtransNotificationController::class, 'handle'])
+    ->name('midtrans.notification');
+
+/*
+|--------------------------------------------------------------------------
+| DEBUG MIDTRANS (OPSIONAL)
+|--------------------------------------------------------------------------
+| Untuk testing koneksi Midtrans di local dev.
+*/
 Route::get('/debug-midtrans', function () {
-    // Cek apakah config terbaca
     $config = [
         'merchant_id'   => config('midtrans.merchant_id'),
         'client_key'    => config('midtrans.client_key'),
@@ -186,11 +203,9 @@ Route::get('/debug-midtrans', function () {
         'is_production' => config('midtrans.is_production'),
     ];
 
-    // Test buat dummy token
     try {
         $service = new MidtransService();
 
-        // Buat dummy order untuk testing
         $dummyOrder = new \App\Models\Order();
         $dummyOrder->order_number = 'TEST-' . time();
         $dummyOrder->total_amount = 10000;
@@ -198,14 +213,13 @@ Route::get('/debug-midtrans', function () {
         $dummyOrder->shipping_name = 'Test User';
         $dummyOrder->shipping_phone = '08123456789';
         $dummyOrder->shipping_address = 'Jl. Test No. 123';
-        $dummyOrder->user = (object) [
+        $dummyOrder->user = (object)[
             'name'  => 'Tester',
             'email' => 'test@example.com',
             'phone' => '08123456789',
         ];
-        // Dummy items
         $dummyOrder->items = collect([
-            (object) [
+            (object)[
                 'product_id'   => 1,
                 'product_name' => 'Produk Test',
                 'price'        => 10000,
@@ -221,7 +235,6 @@ Route::get('/debug-midtrans', function () {
             'config'  => $config,
             'token'   => $token,
         ]);
-
     } catch (\Exception $e) {
         return response()->json([
             'status'  => 'ERROR',
@@ -230,27 +243,3 @@ Route::get('/debug-midtrans', function () {
         ], 500);
     }
 });
-// routes/web.php
-
-Route::middleware('auth')->group(function () {
-    // ... routes lainnya
-
-    // Payment Routes
-    Route::get('/orders/{order}/pay', [PaymentController::class, 'show'])
-        ->name('orders.pay');
-    Route::get('/orders/{order}/success', [PaymentController::class, 'success'])
-        ->name('orders.success');
-    Route::get('/orders/{order}/pending', [PaymentController::class, 'pending'])
-        ->name('orders.pending');
-});
-// routes/web.php
-
-
-
-// ============================================================
-// MIDTRANS WEBHOOK
-// Route ini HARUS public (tanpa auth middleware)
-// Karena diakses oleh SERVER Midtrans, bukan browser user
-// ============================================================
-Route::post('midtrans/notification', [MidtransNotificationController::class, 'handle'])
-    ->name('midtrans.notification');

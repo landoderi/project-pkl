@@ -18,7 +18,9 @@ class Order extends Model
         'shipping_name',
         'shipping_address',
         'shipping_phone',
-        'total_amount',       // ✅ kolom utama total
+        'total_amount',    
+         'shipping_cost',
+    'snap_token', 
     ];
 
     /**
