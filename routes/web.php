@@ -149,6 +149,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders/{order}/pay', [PaymentController::class, 'show'])->name('orders.pay');
     Route::get('/orders/{order}/success', [PaymentController::class, 'success'])->name('orders.success');
     Route::get('/orders/{order}/pending', [PaymentController::class, 'pending'])->name('orders.pending');
+    Route::patch('/orders/{order}/cancel', [App\Http\Controllers\OrderController::class, 'cancel'])
+    ->name('orders.cancel')
+    ->middleware('auth');
+
 });
 
 /*
@@ -157,11 +161,13 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::resource('products', AdminProductController::class);
     // DASHBOARD
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard.alt');
-
+Route::get('/reports/export-sales', [App\Http\Controllers\Admin\ReportController::class, 'exportSales'])
+        ->name('reports.export-sales');
     // PRODUK
     Route::resource('products', AdminProductController::class);
 
@@ -243,3 +249,17 @@ Route::get('/debug-midtrans', function () {
         ], 500);
     }
 });
+Route::middleware(['auth'])->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+
+    // Update hanya avatar
+    Route::put('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+
+    // Hapus avatar
+    Route::delete('/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
+
+    // Update nama/email
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+

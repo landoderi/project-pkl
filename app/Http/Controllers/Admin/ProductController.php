@@ -1,16 +1,13 @@
 <?php
-// app/Http/Controllers/Admin/ProductController.php
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProductRequest;
-use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -19,7 +16,7 @@ use Illuminate\View\View;
 class ProductController extends Controller
 {
     /**
-     * Menampilkan daftar produk dengan fitur pagination dan filtering.
+     * Menampilkan daftar produk.
      */
     public function index(Request $request): View
     {
@@ -31,80 +28,72 @@ class ProductController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $categories = Category::active()->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
         return view('admin.products.index', compact('products', 'categories'));
     }
 
     /**
-     * Form tambah produk baru.
+     * Form tambah produk.
      */
     public function create(): View
     {
-        $categories = Category::active()->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
         return view('admin.products.create', compact('categories'));
     }
 
     /**
-     * Simpan produk baru ke database.
-     * Otomatis aktif dan tampil di halaman utama.
+     * Simpan produk baru (1 foto saja).
      */
-public function store(Request $request): RedirectResponse
-{
-    $validated = $request->validate([
-        'name'        => 'required|string|max:255',
-        'category_id' => 'required|exists:categories,id',
-        'price'       => 'required|numeric|min:0',
-        'stock'       => 'required|integer|min:0',
-        'weight'      => 'required|numeric|min:0',
-        'images.*'    => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-    ]);
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'price'       => 'required|numeric|min:0',
+            'stock'       => 'required|integer|min:0',
+            'weight'      => 'required|numeric|min:0',
+            'image'       => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
 
-    // ✅ Generate slug unik
-    $baseSlug = \Illuminate\Support\Str::slug($validated['name']);
-    $slug = $baseSlug;
-    $counter = 1;
-    while (\App\Models\Product::where('slug', $slug)->exists()) {
-        $slug = $baseSlug . '-' . $counter++;
-    }
-
-    $validated['slug'] = $slug;
-    $validated['is_active'] = true;
-    $validated['is_featured'] = true;
-
-    DB::beginTransaction();
-    try {
-        $product = \App\Models\Product::create($validated);
-
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('products', 'public');
-                $product->images()->create([
-                    'image_path' => $path,
-                    'is_primary' => $index === 0,
-                    'sort_order' => $index,
-                ]);
-            }
+        // Buat slug unik
+        $baseSlug = Str::slug($validated['name']);
+        $slug = $baseSlug;
+        $counter = 1;
+        while (Product::where('slug', $slug)->exists()) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
         }
 
-        DB::commit();
+        $validated['slug'] = $slug;
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['is_featured'] = true;
 
-        return redirect()->route('admin.products.index')
-            ->with('success', 'Produk berhasil ditambahkan dan tampil di halaman utama!');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return back()->withInput()->with('error', 'Gagal menyimpan produk: ' . $e->getMessage());
-    }
-}
+        DB::beginTransaction();
 
+        try {
+            // Simpan produk utama
+            $product = Product::create($validated);
 
-    /**
-     * Detail produk.
-     */
-    public function show(Product $product): View
-    {
-        $product->load(['category', 'images', 'orderItems']);
-        return view('admin.products.show', compact('product'));
+            // Simpan 1 foto utama jika ada
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('products', 'public');
+
+                $product->images()->create([
+                    'image_path' => $path,
+                    'is_primary' => true,
+                    'sort_order' => 0,
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('admin.products.index')
+                ->with('success', 'Produk berhasil ditambahkan!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', 'Gagal menyimpan produk: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -112,91 +101,76 @@ public function store(Request $request): RedirectResponse
      */
     public function edit(Product $product): View
     {
-        $categories = Category::active()->orderBy('name')->get();
-        $product->load('images');
+        $categories = Category::orderBy('name')->get();
+        $product->load('primaryImage');
         return view('admin.products.edit', compact('product', 'categories'));
     }
 
     /**
-     * Update data produk.
+     * Update produk (1 foto utama).
      */
-    public function update(UpdateProductRequest $request, Product $product): RedirectResponse
+    public function update(Request $request, Product $product): RedirectResponse
     {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'price'       => 'required|numeric|min:0',
+            'stock'       => 'required|integer|min:0',
+            'weight'      => 'required|numeric|min:0',
+            'image'       => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
         DB::beginTransaction();
+
         try {
-            $product->update($request->validated());
+            // Update data utama
+            $product->update($validated);
 
-            if ($request->hasFile('images')) {
-                $this->uploadImages($request->file('images'), $product);
-            }
+            // Jika upload foto baru, hapus lama lalu ganti
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('products', 'public');
 
-            if ($request->has('delete_images')) {
-                $this->deleteImages($request->delete_images);
-            }
+                // Hapus gambar lama (jika ada)
+                if ($product->primaryImage) {
+                    Storage::disk('public')->delete($product->primaryImage->image_path);
+                    $product->primaryImage->delete();
+                }
 
-            if ($request->has('primary_image')) {
-                $this->setPrimaryImage($product, $request->primary_image);
+                // Simpan gambar baru
+                $product->images()->create([
+                    'image_path' => $path,
+                    'is_primary' => true,
+                    'sort_order' => 0,
+                ]);
             }
 
             DB::commit();
+
             return redirect()->route('admin.products.index')
                 ->with('success', 'Produk berhasil diperbarui!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal update: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Gagal update produk: ' . $e->getMessage());
         }
     }
 
     /**
-     * Hapus produk beserta gambar.
+     * Hapus produk & gambar.
      */
     public function destroy(Product $product): RedirectResponse
     {
         try {
-            foreach ($product->images as $image) {
-                Storage::disk('public')->delete($image->image_path);
+            if ($product->primaryImage) {
+                Storage::disk('public')->delete($product->primaryImage->image_path);
+                $product->primaryImage->delete();
             }
 
             $product->delete();
+
             return redirect()->route('admin.products.index')
-                ->with('success', 'Produk dihapus!');
+                ->with('success', 'Produk berhasil dihapus!');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal menghapus: ' . $e->getMessage());
+            return back()->with('error', 'Gagal menghapus produk: ' . $e->getMessage());
         }
-    }
-
-    // ============================================================
-    // ====================== HELPER METHODS ======================
-    // ============================================================
-
-    protected function uploadImages(array $files, Product $product): void
-    {
-        $isFirst = $product->images()->count() === 0;
-
-        foreach ($files as $index => $file) {
-            $filename = 'product-' . $product->id . '-' . time() . '-' . $index . '.' . $file->extension();
-            $path = $file->storeAs('products', $filename, 'public');
-
-            $product->images()->create([
-                'image_path' => $path,
-                'is_primary' => $isFirst && $index === 0,
-                'sort_order' => $product->images()->count() + $index,
-            ]);
-        }
-    }
-
-    protected function deleteImages(array $imageIds): void
-    {
-        $images = ProductImage::whereIn('id', $imageIds)->get();
-        foreach ($images as $image) {
-            Storage::disk('public')->delete($image->image_path);
-            $image->delete();
-        }
-    }
-
-    protected function setPrimaryImage(Product $product, int $imageId): void
-    {
-        $product->images()->update(['is_primary' => false]);
-        $product->images()->where('id', $imageId)->update(['is_primary' => true]);
     }
 }

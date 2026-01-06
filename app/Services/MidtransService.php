@@ -15,6 +15,11 @@ class MidtransService
         Config::$isProduction = config('midtrans.is_production');
         Config::$isSanitized  = config('midtrans.is_sanitized');
         Config::$is3ds        = config('midtrans.is_3ds');
+
+        \Log::info('🔑 Midtrans Config Loaded', [
+        'server_key' => Config::$serverKey,
+        'is_production' => Config::$isProduction,
+    ]);
     }
 
     /**

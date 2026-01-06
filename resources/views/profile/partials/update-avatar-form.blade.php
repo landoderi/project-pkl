@@ -4,9 +4,9 @@
     Upload foto profil kamu. Format yang didukung: JPG, PNG, WebP. Maksimal 2MB.
 </p>
 
-<form method="post" action="{{ route('profile.update') }}" enctype="multipart/form-data">
+<form method="POST" action="{{ route('profile.avatar.update') }}" enctype="multipart/form-data">
     @csrf
-    @method('patch')
+    @method('PUT')
 
     <div class="d-flex align-items-center gap-4">
         {{-- Avatar Preview --}}
@@ -14,10 +14,10 @@
             <img id="avatar-preview"
                  class="rounded-circle object-fit-cover border"
                  style="width: 100px; height: 100px;"
-                 src="{{ $user->avatar ? asset('storage/' . $user->avatar) : asset('images/default-avatar.png') }}"
-                 alt="{{ $user->name }}">
+                 src="{{ Auth::user()->avatar ? asset('storage/' . Auth::user()->avatar) : asset('images/default-avatar.png') }}"
+                 alt="{{ Auth::user()->name }}">
 
-            @if($user->avatar)
+            @if(Auth::user()->avatar)
                 <button type="button"
                         onclick="if(confirm('Hapus foto profil?')) document.getElementById('delete-avatar-form').submit()"
                         class="btn btn-danger btn-sm rounded-circle position-absolute top-0 start-100 translate-middle p-1"

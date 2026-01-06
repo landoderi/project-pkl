@@ -1,27 +1,40 @@
 <?php
-// app/Http/Controllers/Admin/CategoryController.php
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class CategoryController extends Controller
 {
     /**
-     * Menampilkan daftar kategori.
+     * Menampilkan daftar kategori dengan caching dan pagination.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Mengambil data kategori dengan pagination.
-        // withCount('products'): Menghitung jumlah produk di setiap kategori.
-        // Teknik ini jauh lebih efisien daripada memanggil $category->products->count() di view (N+1 Problem).
-        $categories = Category::withCount('products')
-            ->latest() // Urutkan dari yang terbaru (created_at desc)
-            ->paginate(10); // Batasi 10 item per halaman
+        // Ambil data kategori dari cache
+        $allCategories = Cache::remember('global_categories_data', 3600, function () {
+            return Category::select('id', 'name', 'slug', 'is_active', 'image', 'created_at')
+                ->withCount('products')
+                ->latest()
+                ->get(); // pakai get() agar bisa manual pagination
+        });
+
+        // Buat paginator manual
+        $perPage = 10;
+        $page = $request->get('page', 1);
+        $categories = new LengthAwarePaginator(
+            $allCategories->forPage($page, $perPage),
+            $allCategories->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return view('admin.categories.index', compact('categories'));
     }
@@ -29,82 +42,89 @@ class CategoryController extends Controller
     /**
      * Menyimpan kategori baru ke database.
      */
-public function store(Request $request)
-{
-    $validated = $request->validate([
-        'name' => 'required|string|max:100|unique:categories',
-        'description' => 'nullable|string|max:500',
-        'image' => 'nullable|image|max:1024',
-        'is_active' => 'nullable|boolean',
-    ]);
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:categories',
+            'image' => 'nullable|image|max:1024',
+            'is_active' => 'boolean',
+        ]);
 
-    // Upload gambar jika ada
-    if ($request->hasFile('image')) {
-        $validated['image'] = $request->file('image')->store('categories', 'public');
+        // Upload gambar jika ada
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
+
+        // Generate slug otomatis
+        $validated['slug'] = Str::slug($validated['name']);
+
+        Category::create($validated);
+
+        // Hapus cache lama agar data terbaru muncul
+        Cache::forget('global_categories_data');
+
+        return back()->with('success', 'Kategori berhasil ditambahkan!');
     }
-
-    // Generate slug
-    $validated['slug'] = Str::slug($validated['name']);
-
-    // Set default aktif = false jika checkbox tidak dicentang
-    $validated['is_active'] = $request->has('is_active') ? 1 : 0;
-
-    Category::create($validated);
-
-    return back()->with('success', 'Kategori berhasil ditambahkan!');
-}
-
 
     /**
-     * Memperbarui data kategori.
+     * Memperbarui data kategori (hanya nama & gambar).
      */
-public function update(Request $request, Category $category)
-{
-    $validated = $request->validate([
-        'name' => 'required|string|max:100|unique:categories,name,' . $category->id,
-        'description' => 'nullable|string|max:500',
-        'image' => 'nullable|image|max:1024',
-        'is_active' => 'nullable|boolean',
-    ]);
+    public function update(Request $request, Category $category)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:categories,name,' . $category->id,
+            'image' => 'nullable|image|max:1024',
+        ]);
 
-    if ($request->hasFile('image')) {
-        if ($category->image) {
-            Storage::disk('public')->delete($category->image);
+        // Handle upload gambar baru (jika ada)
+        if ($request->hasFile('image')) {
+            // Hapus gambar lama jika ada
+            if ($category->image && Storage::disk('public')->exists($category->image)) {
+                Storage::disk('public')->delete($category->image);
+            }
+
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        } else {
+            // Jika tidak ada upload gambar baru, pakai gambar lama
+            $validated['image'] = $category->image;
         }
-        $validated['image'] = $request->file('image')->store('categories', 'public');
+
+        // Update slug berdasarkan nama baru
+        $validated['slug'] = Str::slug($validated['name']);
+
+        // Update hanya nama & gambar
+        $category->update([
+            'name'  => $validated['name'],
+            'slug'  => $validated['slug'],
+            'image' => $validated['image'],
+        ]);
+
+        // Hapus cache lama agar data terbaru muncul
+        Cache::forget('global_categories_data');
+
+        return redirect()->route('admin.categories.index')->with('success', 'Kategori berhasil diperbarui!');
     }
-
-    $validated['slug'] = Str::slug($validated['name']);
-
-    // Pastikan aktif atau tidak tetap tersimpan dengan benar
-    $validated['is_active'] = $request->has('is_active') ? 1 : 0;
-
-    $category->update($validated);
-
-    return back()->with('success', 'Kategori berhasil diperbarui!');
-}
-
 
     /**
      * Menghapus kategori.
      */
     public function destroy(Category $category)
     {
-        // 1. Safeguard (Pencegahan)
-        // Jangan hapus kategori jika masih ada produk di dalamnya.
-        // Ini mencegah produk menjadi "yatim piatu" (orphan data) yang tidak punya kategori.
+        // Cegah hapus kategori jika masih ada produk
         if ($category->products()->exists()) {
-            return back()->with('error',
-                'Kategori tidak dapat dihapus karena masih memiliki produk. Silahkan pindahkan atau hapus produk terlebih dahulu.');
+            return back()->with('error', 'Kategori tidak dapat dihapus karena masih memiliki produk.');
         }
 
-        // 2. Hapus file gambar fisik dari storage
-        if ($category->image) {
+        // Hapus file gambar jika ada
+        if ($category->image && Storage::disk('public')->exists($category->image)) {
             Storage::disk('public')->delete($category->image);
         }
 
-        // 3. Hapus record dari database
+        // Hapus dari database
         $category->delete();
+
+        // Hapus cache agar daftar kategori terbaru muncul
+        Cache::forget('global_categories_data');
 
         return back()->with('success', 'Kategori berhasil dihapus!');
     }

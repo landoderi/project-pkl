@@ -6,8 +6,7 @@
         <div class="col-lg-8">
 
             <div class="card shadow-sm border-0">
-
-                {{-- HEADER ORDER --}}
+                {{-- HEADER --}}
                 <div class="card-header bg-white border-bottom">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -20,18 +19,18 @@
                         </div>
 
                         @php
-                        $statusClass = match($order->status) {
-                        'pending' => 'warning',
-                        'processing' => 'primary',
-                        'shipped' => 'info',
-                        'delivered' => 'success',
-                        'cancelled' => 'danger',
-                        default => 'secondary',
-                        };
+                            $statusClass = match($order->status) {
+                                'pending' => 'warning',
+                                'processing' => 'primary',
+                                'shipped' => 'info',
+                                'delivered' => 'success',
+                                'cancelled' => 'danger',
+                                default => 'secondary',
+                            };
                         @endphp
 
                         <span class="badge bg-{{ $statusClass }} px-3 py-2 text-uppercase">
-                            {{ $order->status }}
+                            {{ ucfirst($order->status) }}
                         </span>
                     </div>
                 </div>
@@ -67,18 +66,14 @@
                             <tfoot class="border-top">
                                 @if($order->shipping_cost > 0)
                                 <tr>
-                                    <td colspan="3" class="text-end pt-3">
-                                        Ongkos Kirim
-                                    </td>
+                                    <td colspan="3" class="text-end pt-3">Ongkos Kirim</td>
                                     <td class="text-end pt-3">
                                         Rp {{ number_format($order->shipping_cost, 0, ',', '.') }}
                                     </td>
                                 </tr>
                                 @endif
                                 <tr>
-                                    <td colspan="3" class="text-end fs-5 fw-bold">
-                                        TOTAL BAYAR
-                                    </td>
+                                    <td colspan="3" class="text-end fs-5 fw-bold">TOTAL BAYAR</td>
                                     <td class="text-end fs-5 fw-bold text-primary">
                                         Rp {{ number_format($order->total_amount, 0, ',', '.') }}
                                     </td>
@@ -96,16 +91,30 @@
                     <p class="mb-0">{{ $order->shipping_address }}</p>
                 </div>
 
-                {{-- BAYAR --}}
-                @if($order->status === 'pending' && $snapToken)
-                <div class="card-footer bg-white text-center">
-                    <p class="text-muted mb-3">
-                        Selesaikan pembayaran Anda sebelum batas waktu berakhir.
-                    </p>
-                    <button id="pay-button" class="btn btn-primary btn-lg px-5 shadow">
-                        💳 Bayar Sekarang
-                    </button>
-                </div>
+                {{-- AKSI PEMBAYARAN & PEMBATALAN --}}
+                @if(in_array($order->status, ['pending', 'processing']))
+                    <div class="card-footer bg-white text-center">
+                        {{-- Tombol bayar (jika masih pending) --}}
+                        @if($order->status === 'pending' && !empty($snapToken))
+                            <p class="text-muted mb-3">
+                                Selesaikan pembayaran Anda sebelum batas waktu berakhir.
+                            </p>
+                            <button id="pay-button" class="btn btn-primary btn-lg px-5 shadow me-2">
+                                💳 Bayar Sekarang
+                            </button>
+                        @endif
+
+                        {{-- Tombol batal pesanan --}}
+                        <form action="{{ route('orders.cancel', $order->id) }}" method="POST" class="d-inline">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit"
+                                class="btn btn-outline-danger btn-lg px-5 shadow"
+                                onclick="return confirm('Yakin ingin membatalkan pesanan ini?')">
+                                ❌ Batalkan Pesanan
+                            </button>
+                        </form>
+                    </div>
                 @endif
 
             </div>
@@ -115,13 +124,17 @@
 </div>
 @endsection
 
+
 {{-- MIDTRANS --}}
-@if($snapToken)
 @push('scripts')
-<script src="{{ config('midtrans.snap_url') }}" data-client-key="{{ config('midtrans.client_key') }}"></script>
+@if(!empty($snapToken))
+<script 
+    src="{{ config('midtrans.snap_url') }}" 
+    data-client-key="{{ config('midtrans.client_key') }}">
+</script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function () {
     const payButton = document.getElementById('pay-button');
     if (!payButton) return;
 
@@ -130,24 +143,28 @@
         payButton.innerText = 'Memproses...';
 
         snap.pay('{{ $snapToken }}', {
-            onSuccess() {
-                window.location.href = '{{ route("orders.success", $order) }}';
+            onSuccess: function (result) {
+                console.log('✅ Pembayaran sukses:', result);
+                window.location.href = "{{ route('orders.success', $order->id) }}";
             },
-            onPending() {
-                window.location.href = '{{ route("orders.pending", $order) }}';
+            onPending: function (result) {
+                console.log('🕒 Pembayaran pending:', result);
+                window.location.href = "{{ route('orders.pending', $order->id) }}";
             },
-            onError() {
+            onError: function (result) {
+                console.error('❌ Terjadi error pembayaran:', result);
                 alert('Pembayaran gagal. Silakan coba lagi.');
                 payButton.disabled = false;
                 payButton.innerText = '💳 Bayar Sekarang';
             },
-            onClose() {
-                payButton.disabled = false;
-                payButton.innerText = '💳 Bayar Sekarang';
+            onClose: function () {
+                console.warn('❗ Popup pembayaran ditutup sebelum selesai.');
+                alert('Kamu belum menyelesaikan pembayaran.');
+                window.location.href = "{{ route('orders.pending', $order->id) }}";
             }
         });
     });
 });
 </script>
-@endpush
 @endif
+@endpush

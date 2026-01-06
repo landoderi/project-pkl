@@ -97,11 +97,6 @@
                             <i class="bi bi-people me-2"></i> Pengguna
                         </a>
                     </li>
-
-                    <li class="nav-item mt-3">
-                        <span class="nav-link text-muted small text-uppercase">Laporan</span>
-                    </li>
-
                     <li class="nav-item">
                         <a href="{{ route('admin.reports.sales') }}"
                            class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">

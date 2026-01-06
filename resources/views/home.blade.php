@@ -103,7 +103,7 @@
                 </a>
             </div>
             <div class="col-lg-6 text-center">
-                <video autoplay loop muted playsinline src="images/ironi.mp4" type="video/mp4" width="50%"></video>
+                <video autoplay loop muted playsinline src="images/iron.mp4" type="video/mp4" width="50%"></video>
             </div>
         </div>
     </div>

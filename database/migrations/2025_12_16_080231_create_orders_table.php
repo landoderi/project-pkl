@@ -20,7 +20,8 @@ Schema::create('orders', function (Blueprint $table) {
     $table->enum('status', ['pending', 'processing', 'completed', 'cancelled'])->default('pending');
 
     // Status Pembayaran (PENTING: tambahkan ini)
-    $table->enum('payment_status', ['unpaid', 'paid', 'failed'])->default('unpaid');
+    $table->enum('payment_status', ['unpaid', 'pending', 'paid', 'failed'])->default('unpaid');
+
 
     // Informasi Pengiriman
     $table->string('shipping_name');

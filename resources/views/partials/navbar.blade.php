@@ -169,19 +169,7 @@
 </nav>
 
 {{-- Lapisan bawah: menu kategori (tidak ikut scroll) --}}
-<div style="background-color: #ffffff;">
-    <div class="container">
-        <ul class="nav justify-content-center text-uppercase fw-semibold py-2">
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Cappuccino</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Cafe Mocha</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Iced Coffee</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Macchiato</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Cortado</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Cafe au Lait</a></li>
-            <li class="nav-item mx-3"><a class="nav-link text-dark" href="#">Blogs</a></li>
-        </ul>
-    </div>
-</div>
+
 
 {{-- JS untuk efek mengecil saat scroll --}}
 <script>

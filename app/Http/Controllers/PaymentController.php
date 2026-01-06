@@ -1,41 +1,54 @@
 <?php
-// app/Http/Controllers/PaymentController.php
 
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Services\MidtransService;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
     /**
-     * Mengambil Snap Token untuk order ini (API Endpoint).
-     * Dipanggil via AJAX dari frontend saat user klik "Bayar".
+     * Callback jika pembayaran sukses
      */
-    public function getSnapToken(Order $order, MidtransService $midtransService)
+    public function success(Order $order)
     {
-        // 1. Authorization: Pastikan user adalah pemilik order
-        if ($order->user_id !== auth()->id()) {
-            abort(403);
+        // Update status pembayaran
+        if ($order->payment_status !== 'paid') {
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'processing',
+            ]);
         }
 
-        // 2. Cek apakah order sudah dibayar
-        if ($order->payment_status === 'paid') {
-            return response()->json(['error' => 'Pesanan sudah dibayar.'], 400);
-        }
+        // Tampilkan halaman sukses
+        return view('orders.success', compact('order'));
+    }
 
-        try {
-            // 3. Generate Snap Token dari Midtrans
-            $snapToken = $midtransService->createSnapToken($order);
+    /**
+     * Callback jika pembayaran masih pending
+     */
+    public function pending(Order $order)
+{
+    if ($order->payment_status !== 'pending') {
+        $order->update(['payment_status' => 'pending']);
+    }
 
-            // 4. Simpan token ke database untuk referensi
-            $order->update(['snap_token' => $snapToken]);
+    return view('orders.pending', compact('order'));
+}
 
-            // 5. Kirim token ke frontend
-            return response()->json(['token' => $snapToken]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+
+    /**
+     * Callback jika pembayaran gagal
+     */
+    public function failed(Order $order)
+    {
+        $order->update([
+            'payment_status' => 'failed',
+        ]);
+
+        // Redirect ke halaman detail order
+        return redirect()
+            ->route('orders.show', $order)
+            ->with('error', 'Pembayaran gagal. Silakan coba lagi.');
     }
 }
